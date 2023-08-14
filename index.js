@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import TelegramApi from "node-telegram-bot-api";
 import mariadb from "mariadb";
+import keyboards from "./keyboards.js";
 
 const conn = await mariadb.createConnection({
   host: process.env.DATABASE_HOST,
@@ -21,7 +22,7 @@ async function listEx(length) {
       break;
     case 2:
       result = exList
-        .map((el, i) => `${i + 1}: ${el.name}.\nОписание: ${el.description}`)
+        .map((el, i) => `${i + 1}: ${el.name}.\nОписание: ${el.description}\n`)
         .join("");
       break;
     case 3:
@@ -38,19 +39,79 @@ async function listEx(length) {
   return "Список упражнений:\n\n" + result;
 }
 
-async function run() {
-  const baseKeyboard = {
-    reply_markup: JSON.stringify({
-      inline_keyboard: [
-        [{ text: "Главное меню", callback_data: "default" }],
-        [
-          { text: "Создать упражнение", callback_data: "createex" },
-          { text: "Удалить упражнение", callback_data: "deleteex" },
-        ],
-      ],
-    }),
-  };
+async function listDay(user, dayNo, length) {
+  // добавить багфикс на пустые дни
+  const userData = await conn.query(
+    `SELECT user_data FROM users WHERE user_tg_id='${user}'`
+  );
+  const exList = await conn.query("SELECT * FROM base_ex");
+  const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
 
+  let result = `День ${dayNo}:\n\n`;
+
+  for (let ex in day) {
+    const currentEx = exList.find((el) => el.base_ex_id == day[ex].base_ex_id);
+    if (!currentEx) {
+      console.log("Ошибка, такого ID упражнения не существует");
+      return;
+    }
+    result += `${currentEx.name}\n`;
+    if (length > 1) {
+      result += `${day[ex].sets} подходов по ${day[ex].times} раз`;
+      if (day[ex].weight) {
+        result += ` с весом ${day[ex].weight}`;
+      }
+      result += ".\n";
+    }
+  }
+
+  return result;
+}
+
+// console.log(await listDay(210594077, 2, 2));
+
+async function listAllDays(user, length) {
+  const userData = await conn.query(
+    `SELECT user_data FROM users WHERE user_tg_id='${user}'`
+  );
+  const week = JSON.parse(userData[0].user_data).days;
+  let result = "";
+  for (let i = 0; i < week.length; i++) {
+    result += await listDay(user, i + 1, 1);
+  }
+  result += "\n";
+  return result;
+}
+
+// console.log(await listAllDays(210594077));
+
+async function updateData(user, action) {
+  const userData = await conn.query(
+    `SELECT user_data FROM users WHERE user_tg_id='${user}'`
+  );
+
+  if (userData[0].user_data === "" || userData[0].user_data === null) {
+    await conn.query(
+      `UPDATE users SET user_data='{"days":[[]]}' WHERE user_tg_id='${user}'`
+    );
+    // НЕ КРИТИЧНО, НО ЗАВИСАЕТ
+  } else {
+    userData[0].user_data = JSON.parse(userData[0].user_data);
+    action(userData[0].user_data);
+    userData[0].user_data = JSON.stringify(userData[0].user_data);
+    conn.query(
+      `UPDATE users SET user_data = '${userData[0].user_data}' WHERE user_tg_id='${user}'`
+    );
+  }
+}
+
+async function updateMode(newMode, user) {
+  await conn.query(
+    `UPDATE users SET user_mode = '${newMode}' WHERE user_tg_id = '${user}'`
+  );
+}
+
+async function run() {
   bot.on("text", async (msg) => {
     const text = msg.text;
     const chat = msg.chat.id;
@@ -70,52 +131,178 @@ async function run() {
       bot.sendMessage(
         chat,
         `Ваши данные: ${JSON.stringify(data)}`,
-        baseKeyboard
+        keyboards.base
       );
     }
-
-    switch (data[0].user_mode) {
-      case "createex":
+    const mode = data[0].user_mode;
+    switch (mode) {
+      case "create_ex":
         conn.query(
           `INSERT INTO base_ex (name, description, video_url) VALUES('${
             text.split("\n")[0]
           }', '${text.split("\n")[1] ?? ""}', '${text.split("\n")[2] ?? ""}')`
         );
         break;
-      case "deleteex": {
+      case "delete_ex": {
         const exIdToDelete = exList[Number(text - 1)].base_ex_id;
         conn.query(`DELETE FROM base_ex WHERE base_ex_id='${exIdToDelete}'`);
         break;
       }
-    }
+      case "delete_day":
+        updateData(chat, (data) => data.days.splice(text - 1, 1));
+        break;
+      case "edit_day":
+        await updateMode(`edit_day_${text}`, chat);
+        bot.sendMessage(
+          chat,
+          `Вы редактируете день №${text}.\n\n${await listDay(chat, text)}`,
+          keyboards.editDay(text)
+        );
 
-    // console.log(data[0].user_tg_id);
+        break;
+      default:
+        if (/^add_ex_day_\d$/.test(mode)) {
+          const dayNo = mode.replaceAll(/add_ex_day_/g, "");
+          const payload = text.split("\n");
+          const exList = await conn.query("SELECT * FROM base_ex");
+          await updateData(chat, (data) => {
+            data.days[dayNo - 1].push({
+              base_ex_id: exList[payload[0] - 1].base_ex_id,
+              sets: payload[1],
+              times: payload[2],
+              weight: payload[3] ?? "",
+              comment: payload[4] ?? "",
+            });
+          });
+          bot.sendMessage(
+            chat,
+            `Упражнение добавлено в день. Теперь день выглядит так:\n\n${await listDay(
+              chat,
+              dayNo,
+              2
+            )}`
+          );
+        }
+
+        if (/^delete_ex_day_\d$/.test(mode)) {
+          const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
+          await updateData(chat, (data) => {
+            data.days[dayNo - 1].splice(text - 1, 1);
+          });
+          bot.sendMessage(
+            chat,
+            `Упражнение удалено из дня. Теперь день выглядит так:\n\n${await listDay(
+              chat,
+              dayNo,
+              2
+            )}`
+          );
+        }
+
+        break;
+    }
   });
 
   bot.on("callback_query", async (msg) => {
     const chat = msg.message.chat.id;
     const mode = msg.data;
-    await conn.query(
-      `UPDATE users SET user_mode = '${mode}' WHERE user_tg_id = '${chat}'`
-    );
 
     switch (mode) {
-      case "createex":
+      case "default":
+        updateMode(mode, chat);
+        bot.sendMessage(chat, await listEx(2), keyboards.base);
+        break;
+      case "show_exes":
+        updateMode(mode, chat);
+        bot.sendMessage(chat, await listEx(2), keyboards.base);
+        break;
+      case "create_ex":
+        updateMode(mode, chat);
         bot.sendMessage(
           chat,
           `Пришлите название нового упражнения, его описание и ссылку на видео. В три строчки`,
-          baseKeyboard
+          keyboards.escape
         );
         break;
-      case "deleteex":
+      case "delete_ex":
+        updateMode(mode, chat);
         bot.sendMessage(
           chat,
           `Пришлите номер упражнения, которое хотите удалить ${await listEx(
             1
           )}`,
-          baseKeyboard
+          keyboards.escape
         );
+        break;
+      case "create_day": {
+        updateData(chat, (data) => {
+          if (data.days.length < 10) {
+            data.days.push([]);
+
+            bot.sendMessage(
+              chat,
+              `День создан. Нажмите "редактировать", чтобы добавить в него упражнения`,
+              keyboards.base
+            );
+            return data;
+          } else {
+            bot.sendMessage(
+              chat,
+              `Нельзя создать больше 10 дней`,
+              keyboards.base
+            );
+            return data;
+          }
+        });
+        updateMode("default");
+        break;
+      }
+      case "delete_day":
+        updateMode(mode, chat);
+        bot.sendMessage(
+          chat,
+          `Пришлите номер дня, чтобы удалить его`,
+          keyboards.base
+        );
+        break;
+      case "edit_day":
+        updateMode(mode, chat);
+        bot.sendMessage(
+          chat,
+          `Какой день по счету будем редактировать? Пришлите число.\n\n${await listAllDays(
+            chat
+          )}`,
+          keyboards.escape
+        );
+        break;
+      default:
+        if (/^add_ex_day_\d$/.test(mode)) {
+          const dayNo = mode.replaceAll(/add_ex_day_/g, "");
+          updateMode(`add_ex_day_${dayNo}`, chat);
+          bot.sendMessage(
+            chat,
+            `Пришлите номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки \n\n${await listEx(
+              1
+            )}`,
+            keyboards.escape
+          );
+          break;
+        }
+        if (/^delete_ex_day_\d$/.test(mode)) {
+          const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
+          updateMode(`delete_ex_day_${dayNo}`, chat);
+          bot.sendMessage(
+            chat,
+            `Пришлите номер упражнения, которое хотите удалить.\n\n${await listDay(
+              chat,
+              dayNo
+            )}`,
+            keyboards.escape
+          );
+        }
     }
   });
 }
 run();
+
+// в listEx переделать, чтоб описания не показывались, если их нет
