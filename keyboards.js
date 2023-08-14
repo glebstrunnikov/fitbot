@@ -38,16 +38,10 @@ const keyboards = {
       return {
         reply_markup: JSON.stringify({
           inline_keyboard: [
-            [
-              { text: "Главное меню", callback_data: "default" },
-              { text: "Добавить упражнение", callback_data: "add_ex_day" },
-            ],
+            [{ text: "Добавить упражнение", callback_data: "add_ex_day" }],
             [
               { text: "Удалить упражнение", callback_data: "delete_ex_day" },
-              {
-                text: "Редактировать упражнение",
-                callback_data: "edit_ex_day",
-              },
+              { text: "Главное меню", callback_data: "default" },
             ],
           ],
         }),
@@ -57,7 +51,6 @@ const keyboards = {
         reply_markup: JSON.stringify({
           inline_keyboard: [
             [
-              { text: "Главное меню", callback_data: "default" },
               {
                 text: "Добавить упражнение",
                 callback_data: `add_ex_day_${dayNo}`,
@@ -68,10 +61,7 @@ const keyboards = {
                 text: "Удалить упражнение",
                 callback_data: `delete_ex_day_${dayNo}`,
               },
-              {
-                text: "Редактировать упражнение",
-                callback_data: `edit_ex_day_${dayNo}`,
-              },
+              { text: "Главное меню", callback_data: "default" },
             ],
           ],
         }),

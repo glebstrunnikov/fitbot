@@ -3,6 +3,7 @@ dotenv.config();
 import TelegramApi from "node-telegram-bot-api";
 import mariadb from "mariadb";
 import keyboards from "./keyboards.js";
+import list from "./list.js";
 
 const conn = await mariadb.createConnection({
   host: process.env.DATABASE_HOST,
@@ -13,77 +14,9 @@ const conn = await mariadb.createConnection({
 
 const bot = new TelegramApi(process.env.BOT_TOKEN, { polling: true });
 
-async function listEx(length) {
-  const exList = await conn.query("SELECT * FROM base_ex");
-  let result;
-  switch (length) {
-    case 1:
-      result = exList.map((el, i) => `${i + 1}: ${el.name};\n`).join("");
-      break;
-    case 2:
-      result = exList
-        .map((el, i) => `${i + 1}: ${el.name}.\nОписание: ${el.description}\n`)
-        .join("");
-      break;
-    case 3:
-      result = exList
-        .map(
-          (el, i) =>
-            `${i + 1}: ${el.name}.\nОписание: ${el.description}\n\nВидео: ${
-              el.video_url
-            }`
-        )
-        .join("");
-      break;
-  }
-  return "Список упражнений:\n\n" + result;
-}
-
-async function listDay(user, dayNo, length) {
-  // добавить багфикс на пустые дни
-  const userData = await conn.query(
-    `SELECT user_data FROM users WHERE user_tg_id='${user}'`
-  );
-  const exList = await conn.query("SELECT * FROM base_ex");
-  const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
-
-  let result = `День ${dayNo}:\n\n`;
-
-  for (let ex in day) {
-    const currentEx = exList.find((el) => el.base_ex_id == day[ex].base_ex_id);
-    if (!currentEx) {
-      console.log("Ошибка, такого ID упражнения не существует");
-      return;
-    }
-    result += `${currentEx.name}\n`;
-    if (length > 1) {
-      result += `${day[ex].sets} подходов по ${day[ex].times} раз`;
-      if (day[ex].weight) {
-        result += ` с весом ${day[ex].weight}`;
-      }
-      result += ".\n";
-    }
-  }
-
-  return result;
-}
-
-// console.log(await listDay(210594077, 2, 2));
-
-async function listAllDays(user, length) {
-  const userData = await conn.query(
-    `SELECT user_data FROM users WHERE user_tg_id='${user}'`
-  );
-  const week = JSON.parse(userData[0].user_data).days;
-  let result = "";
-  for (let i = 0; i < week.length; i++) {
-    result += await listDay(user, i + 1, 1);
-  }
-  result += "\n";
-  return result;
-}
-
-// console.log(await listAllDays(210594077));
+const listEx = (length) => list.ex(conn, length);
+const listDay = (user, dayNo, length) => list.day(conn, user, dayNo, length);
+const listAllDays = (user, length) => list.allDays(conn, user, length);
 
 async function updateData(user, action) {
   const userData = await conn.query(
@@ -91,7 +24,7 @@ async function updateData(user, action) {
   );
 
   if (userData[0].user_data === "" || userData[0].user_data === null) {
-    await conn.query(
+    return conn.query(
       `UPDATE users SET user_data='{"days":[[]]}' WHERE user_tg_id='${user}'`
     );
     // НЕ КРИТИЧНО, НО ЗАВИСАЕТ
@@ -99,7 +32,7 @@ async function updateData(user, action) {
     userData[0].user_data = JSON.parse(userData[0].user_data);
     action(userData[0].user_data);
     userData[0].user_data = JSON.stringify(userData[0].user_data);
-    conn.query(
+    return conn.query(
       `UPDATE users SET user_data = '${userData[0].user_data}' WHERE user_tg_id='${user}'`
     );
   }
@@ -127,13 +60,14 @@ async function run() {
         `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${userId}', 'default', '')`
       );
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
-    } else {
-      bot.sendMessage(
-        chat,
-        `Ваши данные: ${JSON.stringify(data)}`,
-        keyboards.base
-      );
     }
+    // else {
+    //   bot.sendMessage(
+    //     chat,
+    //     `Ваши данные: ${JSON.stringify(data)}`,
+    //     keyboards.base
+    //   );
+    // }
     const mode = data[0].user_mode;
     switch (mode) {
       case "create_ex":
@@ -142,14 +76,29 @@ async function run() {
             text.split("\n")[0]
           }', '${text.split("\n")[1] ?? ""}', '${text.split("\n")[2] ?? ""}')`
         );
+        bot.sendMessage(
+          chat,
+          `Упражнение создано. Новый список упражнений: ${await listEx(1)}`,
+          keyboards.base
+        );
         break;
       case "delete_ex": {
         const exIdToDelete = exList[Number(text - 1)].base_ex_id;
         conn.query(`DELETE FROM base_ex WHERE base_ex_id='${exIdToDelete}'`);
+        bot.sendMessage(
+          chat,
+          `Упражнение удалено. Новый список упражнений: ${await listEx(1)}`,
+          keyboards.base
+        );
         break;
       }
       case "delete_day":
-        updateData(chat, (data) => data.days.splice(text - 1, 1));
+        await updateData(chat, (data) => data.days.splice(text - 1, 1));
+        bot.sendMessage(
+          chat,
+          `День удален. Вот новый список дней: \n\n${await listAllDays(chat)}`,
+          keyboards.base
+        );
         break;
       case "edit_day":
         await updateMode(`edit_day_${text}`, chat);
@@ -180,7 +129,10 @@ async function run() {
               chat,
               dayNo,
               2
-            )}`
+            )}\n\nВы можете добавить еще упражнение таким же способом: номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки. Или вернуться в главное меню.\n\n${await listEx(
+              1
+            )}`,
+            keyboards.escape
           );
         }
 
@@ -210,7 +162,11 @@ async function run() {
     switch (mode) {
       case "default":
         updateMode(mode, chat);
-        bot.sendMessage(chat, await listEx(2), keyboards.base);
+        bot.sendMessage(
+          chat,
+          `Список дней с упражнениями:\n\n${await listAllDays(chat)}`,
+          keyboards.base
+        );
         break;
       case "show_exes":
         updateMode(mode, chat);
@@ -228,32 +184,38 @@ async function run() {
         updateMode(mode, chat);
         bot.sendMessage(
           chat,
-          `Пришлите номер упражнения, которое хотите удалить ${await listEx(
+          `Пришлите номер упражнения, которое хотите удалить \n\n${await listEx(
             1
           )}`,
           keyboards.escape
         );
         break;
       case "create_day": {
-        updateData(chat, (data) => {
-          if (data.days.length < 10) {
+        let success;
+        await updateData(chat, (data) => {
+          if (data.days.length <= 9) {
+            success = true;
             data.days.push([]);
-
-            bot.sendMessage(
-              chat,
-              `День создан. Нажмите "редактировать", чтобы добавить в него упражнения`,
-              keyboards.base
-            );
-            return data;
           } else {
-            bot.sendMessage(
-              chat,
-              `Нельзя создать больше 10 дней`,
-              keyboards.base
-            );
-            return data;
+            success = false;
           }
         });
+        if (success === true) {
+          bot.sendMessage(
+            chat,
+            `День создан. Нажмите "редактировать", чтобы добавить в него упражнения. Список дней: ${await listAllDays(
+              chat
+            )}`,
+            keyboards.base
+          );
+        }
+        if (success === false) {
+          bot.sendMessage(
+            chat,
+            `Нельзя создать больше 10 дней`,
+            keyboards.base
+          );
+        }
         updateMode("default");
         break;
       }
@@ -293,7 +255,7 @@ async function run() {
           updateMode(`delete_ex_day_${dayNo}`, chat);
           bot.sendMessage(
             chat,
-            `Пришлите номер упражнения, которое хотите удалить.\n\n${await listDay(
+            `Пришлите номер упражнения, которое хотите удалить из дня.\n\n${await listDay(
               chat,
               dayNo
             )}`,
