@@ -67,6 +67,33 @@ const keyboards = {
         }),
       };
   },
+
+  custom: (buttons, mode, dummyText, named) => {
+    const keyboard = buttons.map((el, i) => [
+      {
+        text: dummyText + (!named ? +i + 1 : el),
+        callback_data: mode + (Number(i) + 1),
+      },
+    ]);
+    keyboard.push([{ text: "Главное меню", callback_data: "default" }]);
+    return {
+      reply_markup: JSON.stringify({
+        inline_keyboard: keyboard,
+      }),
+    };
+  },
+
+  ex: {
+    reply_markup: JSON.stringify({
+      inline_keyboard: [
+        [{ text: "Обновить результат 💪", callback_data: "default" }],
+        [
+          { text: "Напомнить", callback_data: "default" },
+          { text: "Главное меню", callback_data: "default" },
+        ],
+      ],
+    }),
+  },
 };
 
 export default keyboards;

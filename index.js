@@ -162,10 +162,12 @@ async function run() {
     switch (mode) {
       case "default":
         updateMode(mode, chat);
+        console.log(keyboards.custom([1, 2, 3], "default"));
         bot.sendMessage(
           chat,
           `Список дней с упражнениями:\n\n${await listAllDays(chat)}`,
           keyboards.base
+          // keyboards.custom([1, 2, 3], "default")
         );
         break;
       case "show_exes":
@@ -237,6 +239,22 @@ async function run() {
           keyboards.escape
         );
         break;
+      case "workout": {
+        updateMode(mode, chat);
+        const userData = await conn.query(
+          `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+        );
+        const days = JSON.parse(userData[0].user_data).days;
+
+        bot.sendMessage(
+          chat,
+          `Супер, удачной тренировки! Выберите, какой сегодня день:\n\n${await listAllDays(
+            chat
+          )}`,
+          keyboards.custom(days, "workout_", "День ")
+        );
+        break;
+      }
       default:
         if (/^add_ex_day_\d$/.test(mode)) {
           const dayNo = mode.replaceAll(/add_ex_day_/g, "");
@@ -262,9 +280,58 @@ async function run() {
             keyboards.escape
           );
         }
+        if (/^workout_\d$/.test(mode)) {
+          const dayNo = mode.replaceAll(/workout_/g, "");
+          updateMode(`workout_${dayNo}`, chat);
+          const userData = await conn.query(
+            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+          );
+          const exes = await conn.query("SELECT * FROM base_ex");
+          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const dayArr = day.map((el) => {
+            return exes.find((ex) => ex.base_ex_id == el.base_ex_id).name;
+          });
+          bot.sendMessage(
+            chat,
+            `Отлично! Вот ваша программа на сегодня, выберите упражнение, чтобы начать:\n\n${await listDay(
+              chat,
+              dayNo,
+              2
+            )}`,
+            keyboards.custom(dayArr, `workout_${dayNo}_`, "", true)
+          );
+        }
+        if (/workout_\d_\d$/.test(mode)) {
+          const exNo = mode.replaceAll(/^workout_\d_/g, "");
+          const dayNo = mode.replaceAll(/^workout_/g, "")[0];
+          const userData = await conn.query(
+            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+          );
+          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const exId = day[exNo - 1].base_ex_id;
+          const exes = await conn.query("SELECT * FROM base_ex");
+          const ex = exes.find((el) => el.base_ex_id === exId);
+          updateMode(`workout_${dayNo}_${exNo}`, chat);
+
+          bot.sendMessage(
+            chat,
+            `Текущее упражнение: ${ex.name}\n\n${
+              day[exNo - 1].sets
+            } подходов по ${day[exNo - 1].times} раз${
+              day[exNo - 1].weight ? " с весом " + day[exNo - 1].weight : ""
+            }`,
+            keyboards.ex
+          );
+        }
     }
   });
 }
 run();
 
 // в listEx переделать, чтоб описания не показывались, если их нет
+// ТРЕНЯ
+// ВИДЕО ПО ЗАПРОСУ
+// багфиксы
+//
+// валидаторы
+//
