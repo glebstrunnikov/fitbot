@@ -61,13 +61,6 @@ async function run() {
       );
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
     }
-    // else {
-    //   bot.sendMessage(
-    //     chat,
-    //     `Ваши данные: ${JSON.stringify(data)}`,
-    //     keyboards.base
-    //   );
-    // }
     const mode = data[0].user_mode;
     switch (mode) {
       case "create_ex":
@@ -150,7 +143,23 @@ async function run() {
             )}`
           );
         }
-
+        if (/workout_\d_\d$/.test(mode)) {
+          const exNo = mode.replaceAll(/^workout_\d_/g, "");
+          const dayNo = mode.replaceAll(/^workout_/g, "")[0];
+          const newData = text.split("\n");
+          console.log(newData);
+          await updateData(chat, (data) => {
+            console.log(data.days[dayNo - 1][exNo - 1]);
+            data.days[dayNo - 1][exNo - 1].sets = newData[0];
+            data.days[dayNo - 1][exNo - 1].times = newData[1];
+            if (data.days[dayNo - 1][exNo - 1].weight) {
+              data.days[dayNo - 1][exNo - 1].weight = newData[2];
+            }
+            if (data.days[dayNo - 1][exNo - 1].comment) {
+              data.days[dayNo - 1][exNo - 1].comment = newData.comment;
+            }
+          });
+        }
         break;
     }
   });
@@ -319,8 +328,8 @@ async function run() {
               day[exNo - 1].sets
             } подходов по ${day[exNo - 1].times} раз${
               day[exNo - 1].weight ? " с весом " + day[exNo - 1].weight : ""
-            }`,
-            keyboards.ex
+            }\n\nЧтобы обновить результат 💪, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
+            keyboards.ex(`workout_${dayNo}`)
           );
         }
     }

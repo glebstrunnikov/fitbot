@@ -83,16 +83,18 @@ const keyboards = {
     };
   },
 
-  ex: {
-    reply_markup: JSON.stringify({
-      inline_keyboard: [
-        [{ text: "Обновить результат 💪", callback_data: "default" }],
-        [
-          { text: "Напомнить", callback_data: "default" },
-          { text: "Главное меню", callback_data: "default" },
+  ex: (backData) => {
+    return {
+      reply_markup: JSON.stringify({
+        inline_keyboard: [
+          [{ text: "Назад", callback_data: backData }],
+          [
+            { text: "Напомнить", callback_data: "default" },
+            { text: "Главное меню", callback_data: "default" },
+          ],
         ],
-      ],
-    }),
+      }),
+    };
   },
 };
 
