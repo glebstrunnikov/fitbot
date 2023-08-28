@@ -318,7 +318,16 @@ async function run() {
         const exId = day[exNo - 1].base_ex_id;
         const exes = await conn.query("SELECT * FROM base_ex");
         const ex = exes.find((el) => el.base_ex_id === exId);
-        bot.sendVideo(chat, ex.video_id);
+        if (ex.video_id) {
+          bot.sendVideo(chat, ex.video_id);
+        } else {
+          bot.sendMessage(
+            chat,
+            "Нет видео для этого упражнения!",
+            keyboards.escape
+          );
+        }
+
         break;
       }
 
