@@ -61,6 +61,15 @@ async function run() {
       );
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
     }
+
+    if (text === "/start") {
+      bot.sendMessage(
+        chat,
+        "Итак, что я могу вам предложить\n",
+        keyboards.base
+      );
+    }
+
     const mode = data[0].user_mode;
     switch (mode) {
       case "create_ex": {
