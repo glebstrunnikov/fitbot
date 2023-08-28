@@ -63,18 +63,27 @@ async function run() {
     }
     const mode = data[0].user_mode;
     switch (mode) {
-      case "create_ex":
-        conn.query(
-          `INSERT INTO base_ex (name, description, video_url) VALUES('${
+      case "create_ex": {
+        await conn.query(
+          `INSERT INTO base_ex (name, description) VALUES('${
             text.split("\n")[0]
-          }', '${text.split("\n")[1] ?? ""}', '${text.split("\n")[2] ?? ""}')`
+          }', '${text.split("\n")[1] ?? ""}')`
         );
+
+        const currentExId = await conn.query(
+          `SELECT base_ex_id FROM base_ex WHERE name='${text.split("\n")[0]}'`
+        );
+        // здесь должна быть проверочка на совпадение имен, надо выпиливать последнее при совпадении
+        console.log(currentExId[0].base_ex_id);
+        updateMode(`create_ex_${currentExId[0].base_ex_id}`, chat);
+
         bot.sendMessage(
           chat,
-          `Упражнение создано. Новый список упражнений: ${await listEx(1)}`,
-          keyboards.base
+          `Теперь пришлите видео, если есть`,
+          keyboards.createEx
         );
         break;
+      }
       case "delete_ex": {
         const exIdToDelete = exList[Number(text - 1)].base_ex_id;
         conn.query(`DELETE FROM base_ex WHERE base_ex_id='${exIdToDelete}'`);
@@ -147,7 +156,6 @@ async function run() {
           const exNo = mode.replaceAll(/^workout_\d_/g, "");
           const dayNo = mode.replaceAll(/^workout_/g, "")[0];
           const newData = text.split("\n");
-          console.log(newData);
           await updateData(chat, (data) => {
             console.log(data.days[dayNo - 1][exNo - 1]);
             data.days[dayNo - 1][exNo - 1].sets = newData[0];
@@ -159,6 +167,24 @@ async function run() {
               data.days[dayNo - 1][exNo - 1].comment = newData.comment;
             }
           });
+          const userData = await conn.query(
+            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+          );
+          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const exId = day[exNo - 1].base_ex_id;
+          const exes = await conn.query("SELECT * FROM base_ex");
+          const ex = exes.find((el) => el.base_ex_id === exId);
+          updateMode(`workout_${dayNo}_${exNo}`, chat);
+
+          bot.sendMessage(
+            chat,
+            `Записали прогресс, ура! 💪\n\n${ex.name}\n\n${
+              day[exNo - 1].sets
+            } подходов по ${day[exNo - 1].times} раз${
+              day[exNo - 1].weight ? " с весом " + day[exNo - 1].weight : ""
+            }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
+            keyboards.ex(`workout_${dayNo}`)
+          );
         }
         break;
     }
@@ -171,7 +197,6 @@ async function run() {
     switch (mode) {
       case "default":
         updateMode(mode, chat);
-        console.log(keyboards.custom([1, 2, 3], "default"));
         bot.sendMessage(
           chat,
           `Список дней с упражнениями:\n\n${await listAllDays(chat)}`,
@@ -187,7 +212,7 @@ async function run() {
         updateMode(mode, chat);
         bot.sendMessage(
           chat,
-          `Пришлите название нового упражнения, его описание и ссылку на видео. В три строчки`,
+          `Пришлите название нового упражнения и его описание (с новой строки)`,
           keyboards.escape
         );
         break;
@@ -234,7 +259,7 @@ async function run() {
         updateMode(mode, chat);
         bot.sendMessage(
           chat,
-          `Пришлите номер дня, чтобы удалить его`,
+          `Пришлите номер дня, чтобы удалить его. ${await listAllDays(chat)}`,
           keyboards.base
         );
         break;
@@ -264,6 +289,39 @@ async function run() {
         );
         break;
       }
+      case "unsave": {
+        const data = await conn.query(
+          `SELECT * FROM users WHERE user_tg_id=${chat}`
+        );
+        const currentExId = data[0].user_mode.replaceAll(/^create_ex_/g, "");
+        await conn.query(
+          `DELETE FROM base_ex WHERE base_ex_id='${currentExId}'`
+        );
+        bot.sendMessage(
+          chat,
+          `Вы снова в главном меню. Список дней с упражнениями:\n\n${await listAllDays(
+            chat
+          )}`,
+          keyboards.base
+        );
+        updateMode("default", chat);
+        break;
+      }
+      case "show_video": {
+        const data = await conn.query(
+          `SELECT * FROM users WHERE user_tg_id=${chat}`
+        );
+        const mode = data[0].user_mode;
+        const exNo = mode.replaceAll(/^workout_\d_/g, "");
+        const dayNo = mode.replaceAll(/^workout_/g, "")[0];
+        const day = JSON.parse(data[0].user_data).days[dayNo - 1];
+        const exId = day[exNo - 1].base_ex_id;
+        const exes = await conn.query("SELECT * FROM base_ex");
+        const ex = exes.find((el) => el.base_ex_id === exId);
+        bot.sendVideo(chat, ex.video_id);
+        break;
+      }
+
       default:
         if (/^add_ex_day_\d$/.test(mode)) {
           const dayNo = mode.replaceAll(/add_ex_day_/g, "");
@@ -328,18 +386,30 @@ async function run() {
               day[exNo - 1].sets
             } подходов по ${day[exNo - 1].times} раз${
               day[exNo - 1].weight ? " с весом " + day[exNo - 1].weight : ""
-            }\n\nЧтобы обновить результат 💪, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
+            }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
             keyboards.ex(`workout_${dayNo}`)
           );
         }
+    }
+  });
+
+  bot.on("video", async (msg) => {
+    const data = await conn.query(
+      `SELECT * FROM users WHERE user_tg_id=${msg.chat.id}`
+    );
+
+    const mode = data[0].user_mode;
+    if (/^create_ex_/.test(mode)) {
+      const currentExId = mode.replaceAll(/^create_ex_/g, "");
+      conn.query(
+        `UPDATE base_ex SET video_id='${msg.video.file_id}' WHERE base_ex_id='${currentExId}'`
+      );
     }
   });
 }
 run();
 
 // в listEx переделать, чтоб описания не показывались, если их нет
-// ТРЕНЯ
-// ВИДЕО ПО ЗАПРОСУ
 // багфиксы
 //
 // валидаторы

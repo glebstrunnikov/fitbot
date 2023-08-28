@@ -89,12 +89,23 @@ const keyboards = {
         inline_keyboard: [
           [{ text: "Назад", callback_data: backData }],
           [
-            { text: "Напомнить", callback_data: "default" },
+            { text: "Напомнить", callback_data: "show_video" },
             { text: "Главное меню", callback_data: "default" },
           ],
         ],
       }),
     };
+  },
+
+  createEx: {
+    reply_markup: JSON.stringify({
+      inline_keyboard: [
+        [
+          { text: "Назад в главное меню", callback_data: "unsave" },
+          { text: "Сохранить без видео", callback_data: "default" },
+        ],
+      ],
+    }),
   },
 };
 
