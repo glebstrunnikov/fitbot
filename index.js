@@ -57,7 +57,7 @@ async function run() {
 
     if (data.length === 0) {
       conn.query(
-        `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${userId}', 'default', '')`
+        `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${userId}', 'default', '{"days":[]}')`
       );
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
     }
