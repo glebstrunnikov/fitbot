@@ -107,6 +107,29 @@ const keyboards = {
       ],
     }),
   },
+
+  btnList: (list, dummyText, attribute) => {
+    return {
+      reply_markup: JSON.stringify({
+        keyboard: list.map((el, i) => {
+          return [
+            {
+              text: `${dummyText}${i + 1}${
+                el[attribute] ? ": " + el[attribute] : ""
+              }`,
+            },
+          ];
+        }),
+        // one_time_keyboard: true,
+      }),
+    };
+  },
+
+  rm: {
+    reply_markup: JSON.stringify({
+      remove_keyboard: true,
+    }),
+  },
 };
 
 export default keyboards;

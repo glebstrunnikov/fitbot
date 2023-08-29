@@ -34,8 +34,10 @@ const list = {
     );
     const exList = await conn.query("SELECT * FROM base_ex");
     const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
-
     let result = `День ${dayNo}:\n`;
+    if (day.length === 0) {
+      result += "🤷‍♂️Пусто!\n";
+    }
 
     for (let ex in day) {
       const currentEx = exList.find(
@@ -47,11 +49,18 @@ const list = {
       }
       result += `🎯${currentEx.name}\n`;
       if (length > 1) {
-        result += `${day[ex].sets} подходов по ${day[ex].times} раз`;
+        if (day[ex].sets) {
+          result += `${day[ex].sets} подходов`;
+        }
+        if (day[ex].times) {
+          result += ` по ${day[ex].times} раз`;
+        }
         if (day[ex].weight) {
           result += ` с весом ${day[ex].weight}`;
         }
-        result += ".\n";
+        if (day[ex].sets) {
+          result += ".\n";
+        }
       }
     }
 

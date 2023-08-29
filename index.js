@@ -104,23 +104,32 @@ async function run() {
         );
         break;
       }
-      case "delete_day":
-        await updateData(chat, (data) => data.days.splice(text - 1, 1));
+      case "delete_day": {
+        const dayToDelete = Number(text.replaceAll(/^.*\s/g, "")) - 1;
+        await updateData(chat, (data) => data.days.splice(dayToDelete, 1));
+        bot.sendMessage(chat, "День удален", keyboards.rm);
         bot.sendMessage(
           chat,
-          `День удален. Вот новый список дней: \n\n${await listAllDays(chat)}`,
+          `Вот новый список дней: \n\n${await listAllDays(chat)}`,
           keyboards.base
         );
         break;
-      case "edit_day":
-        await updateMode(`edit_day_${text}`, chat);
+      }
+      case "edit_day": {
+        const dayToEdit = Number(text.replaceAll(/^.*\s/g, ""));
+        await updateMode(`edit_day_${dayToEdit}`, chat);
         bot.sendMessage(
           chat,
-          `Вы редактируете день №${text}.\n\n${await listDay(chat, text)}`,
-          keyboards.editDay(text)
+          `Вы редактируете день ${dayToEdit}`,
+          keyboards.rm
         );
-
+        bot.sendMessage(
+          chat,
+          `${await listDay(chat, dayToEdit, 2)}`,
+          keyboards.editDay(dayToEdit)
+        );
         break;
+      }
       default:
         if (/^add_ex_day_\d$/.test(mode)) {
           const dayNo = mode.replaceAll(/add_ex_day_/g, "");
@@ -129,8 +138,8 @@ async function run() {
           await updateData(chat, (data) => {
             data.days[dayNo - 1].push({
               base_ex_id: exList[payload[0] - 1].base_ex_id,
-              sets: payload[1],
-              times: payload[2],
+              sets: payload[1] ?? "",
+              times: payload[2] ?? "",
               weight: payload[3] ?? "",
               comment: payload[4] ?? "",
             });
@@ -167,7 +176,6 @@ async function run() {
           const dayNo = mode.replaceAll(/^workout_/g, "")[0];
           const newData = text.split("\n");
           await updateData(chat, (data) => {
-            console.log(data.days[dayNo - 1][exNo - 1]);
             data.days[dayNo - 1][exNo - 1].sets = newData[0];
             data.days[dayNo - 1][exNo - 1].times = newData[1];
             if (data.days[dayNo - 1][exNo - 1].weight) {
@@ -226,7 +234,7 @@ async function run() {
           keyboards.escape
         );
         break;
-      case "delete_ex":
+      case "delete_ex": {
         updateMode(mode, chat);
         bot.sendMessage(
           chat,
@@ -236,6 +244,7 @@ async function run() {
           keyboards.escape
         );
         break;
+      }
       case "create_day": {
         let success;
         await updateData(chat, (data) => {
@@ -265,24 +274,37 @@ async function run() {
         updateMode("default");
         break;
       }
-      case "delete_day":
+      case "delete_day": {
         updateMode(mode, chat);
+        const userData = await conn.query(
+          `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+        );
+        const days = JSON.parse(userData[0].user_data).days;
         bot.sendMessage(
           chat,
-          `Пришлите номер дня, чтобы удалить его. ${await listAllDays(chat)}`,
-          keyboards.base
+          `Выберите день, чтобы удалить его. Список дней:\n\n${await listAllDays(
+            chat
+          )}`,
+          keyboards.btnList(days, "День ")
         );
         break;
-      case "edit_day":
+      }
+      case "edit_day": {
         updateMode(mode, chat);
+        const userData = await conn.query(
+          `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+        );
+        const days = JSON.parse(userData[0].user_data).days;
         bot.sendMessage(
           chat,
           `Какой день по счету будем редактировать? Пришлите число.\n\n${await listAllDays(
             chat
           )}`,
-          keyboards.escape
+          keyboards.btnList(days, "День ")
+          // keyboards.escape
         );
         break;
+      }
       case "workout": {
         updateMode(mode, chat);
         const userData = await conn.query(
@@ -430,6 +452,8 @@ run();
 
 // в listEx переделать, чтоб описания не показывались, если их нет
 // багфиксы
-//
 // валидаторы
-//
+// клавиатура после отправки видео
+// клавиатура после удаления упражнения из дня
+// Сделать чтоб при добавлении упражнения в день можно было не указывать подходы/разы
+// Что если удаляется из каталога упражнение, которое есть в днях?
