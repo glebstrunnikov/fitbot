@@ -22,15 +22,27 @@ const keyboards = {
     }),
   },
 
-  escape: {
-    reply_markup: JSON.stringify({
-      inline_keyboard: [
-        [
-          { text: "Главное меню", callback_data: "default" },
-          { text: "Показать упражнения", callback_data: "show_exes" },
-        ],
-      ],
-    }),
+  escape: (secondOptionText, secondOptionData) => {
+    if (secondOptionText && secondOptionData) {
+      return {
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [
+              { text: "Главное меню", callback_data: "default" },
+              { text: secondOptionText, callback_data: secondOptionData },
+            ],
+          ],
+        }),
+      };
+    } else {
+      return {
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [{ text: "Назад в главное меню", callback_data: "default" }],
+          ],
+        }),
+      };
+    }
   },
 
   editDay: (dayNo) => {

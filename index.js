@@ -107,7 +107,7 @@ async function run() {
       case "delete_day": {
         const dayToDelete = Number(text.replaceAll(/^.*\s/g, "")) - 1;
         await updateData(chat, (data) => data.days.splice(dayToDelete, 1));
-        bot.sendMessage(chat, "День удален", keyboards.rm);
+        await bot.sendMessage(chat, "День удален", keyboards.rm);
         bot.sendMessage(
           chat,
           `Вот новый список дней: \n\n${await listAllDays(chat)}`,
@@ -118,7 +118,7 @@ async function run() {
       case "edit_day": {
         const dayToEdit = Number(text.replaceAll(/^.*\s/g, ""));
         await updateMode(`edit_day_${dayToEdit}`, chat);
-        bot.sendMessage(
+        await bot.sendMessage(
           chat,
           `Вы редактируете день ${dayToEdit}`,
           keyboards.rm
@@ -153,22 +153,25 @@ async function run() {
             )}\n\nВы можете добавить еще упражнение таким же способом: номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки. Или вернуться в главное меню.\n\n${await listEx(
               1
             )}`,
-            keyboards.escape
+            keyboards.escape()
           );
         }
 
         if (/^delete_ex_day_\d$/.test(mode)) {
           const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
+          const exIdToDelete = Number(mode.replaceAll(/^.*_/g, ""));
           await updateData(chat, (data) => {
-            data.days[dayNo - 1].splice(text - 1, 1);
+            data.days[dayNo - 1].splice(exIdToDelete, 1);
           });
+          await bot.sendMessage(
+            chat,
+            "Упражнение удалено из дня",
+            keyboards.rm
+          );
           bot.sendMessage(
             chat,
-            `Упражнение удалено из дня. Теперь день выглядит так:\n\n${await listDay(
-              chat,
-              dayNo,
-              2
-            )}`
+            `Теперь день выглядит так:\n\n${await listDay(chat, dayNo, 2)}`,
+            keyboards.editDay(dayNo)
           );
         }
         if (/workout_\d_\d$/.test(mode)) {
@@ -215,6 +218,7 @@ async function run() {
     switch (mode) {
       case "default":
         updateMode(mode, chat);
+        await bot.sendMessage(chat, "Вы в главном меню", keyboards.rm);
         bot.sendMessage(
           chat,
           `Список дней с упражнениями:\n\n${await listAllDays(chat)}`,
@@ -231,7 +235,7 @@ async function run() {
         bot.sendMessage(
           chat,
           `Пришлите название нового упражнения и его описание (с новой строки)`,
-          keyboards.escape
+          keyboards.escape()
         );
         break;
       case "delete_ex": {
@@ -241,7 +245,7 @@ async function run() {
           `Пришлите номер упражнения, которое хотите удалить \n\n${await listEx(
             1
           )}`,
-          keyboards.escape
+          keyboards.escape()
         );
         break;
       }
@@ -351,12 +355,12 @@ async function run() {
         const exes = await conn.query("SELECT * FROM base_ex");
         const ex = exes.find((el) => el.base_ex_id === exId);
         if (ex.video_id) {
-          bot.sendVideo(chat, ex.video_id);
+          bot.sendVideo(chat, ex.video_id, keyboards.ex(`workout_${dayNo}`));
         } else {
           bot.sendMessage(
             chat,
             "Нет видео для этого упражнения!",
-            keyboards.escape
+            keyboards.escape()
           );
         }
 
@@ -372,20 +376,31 @@ async function run() {
             `Пришлите номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки \n\n${await listEx(
               1
             )}`,
-            keyboards.escape
+            keyboards.escape()
           );
           break;
         }
         if (/^delete_ex_day_\d$/.test(mode)) {
           const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
           updateMode(`delete_ex_day_${dayNo}`, chat);
+
+          const userData = await conn.query(
+            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
+          );
+          const exes = await conn.query("SELECT * FROM base_ex");
+          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const list = day.map((el) =>
+            exes.find((ex) => ex.base_ex_id == el.base_ex_id)
+          );
+          console.log(list);
+
           bot.sendMessage(
             chat,
-            `Пришлите номер упражнения, которое хотите удалить из дня.\n\n${await listDay(
+            `Выберите упражнение, которое хотите удалить из дня.\n\n${await listDay(
               chat,
               dayNo
             )}`,
-            keyboards.escape
+            keyboards.btnList(list, "", "name")
           );
         }
         if (/^workout_\d$/.test(mode)) {
@@ -438,7 +453,6 @@ async function run() {
     const data = await conn.query(
       `SELECT * FROM users WHERE user_tg_id=${msg.chat.id}`
     );
-
     const mode = data[0].user_mode;
     if (/^create_ex_/.test(mode)) {
       const currentExId = mode.replaceAll(/^create_ex_/g, "");
@@ -453,7 +467,8 @@ run();
 // в listEx переделать, чтоб описания не показывались, если их нет
 // багфиксы
 // валидаторы
-// клавиатура после отправки видео
+//+ клавиатура после отправки видео
+// клавиатура перед удплением упражнения из дня
 // клавиатура после удаления упражнения из дня
-// Сделать чтоб при добавлении упражнения в день можно было не указывать подходы/разы
+//+ Сделать чтоб при добавлении упражнения в день можно было не указывать подходы/разы
 // Что если удаляется из каталога упражнение, которое есть в днях?
