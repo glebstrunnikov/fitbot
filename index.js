@@ -59,6 +59,7 @@ async function run() {
       await conn.query(
         `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${userId}', 'default', '{"days":[]}')`
       );
+      data = await conn.query(`SELECT * FROM users WHERE user_tg_id=${userId}`);
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
     }
 
