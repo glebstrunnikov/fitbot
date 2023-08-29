@@ -62,6 +62,10 @@ const list = {
     const userData = await conn.query(
       `SELECT user_data FROM users WHERE user_tg_id='${user}'`
     );
+
+    if (!userData[0].user_data) {
+      return "Дни пока не созданы";
+    }
     const week = JSON.parse(userData[0].user_data).days;
     let result = "";
     for (let i = 0; i < week.length; i++) {
