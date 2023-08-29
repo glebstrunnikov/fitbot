@@ -56,7 +56,7 @@ async function run() {
     const exList = await conn.query("SELECT * FROM base_ex");
 
     if (data.length === 0) {
-      conn.query(
+      await conn.query(
         `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${userId}', 'default', '{"days":[]}')`
       );
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
