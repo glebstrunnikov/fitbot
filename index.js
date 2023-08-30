@@ -78,6 +78,7 @@ async function run() {
     );
   });
 
+  // Второй основной элемент упарвления ботом - команды с инлайн-клавиатуры. Используются для навигации. Сами клавиатуры отправляются почти после каждого сообщения и находятся в keyboards.js
   bot.on("callback_query", async (msg) => {
     await onCallbackQuerry(
       bot,
@@ -91,6 +92,7 @@ async function run() {
     );
   });
 
+  // Бот принимает видео только в одном случае - при сохранении нового упражнения.
   bot.on("video", async (msg) => {
     const data = await conn.query(
       `SELECT * FROM users WHERE user_tg_id=${msg.chat.id}`

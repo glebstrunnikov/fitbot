@@ -1,4 +1,5 @@
 const list = {
+  // список упражнений. Выдается в нескольких вариантах - только названия, с описаниями, с описаниями и командами для выдачи видео
   ex: async (conn, length) => {
     const exList = await conn.query("SELECT * FROM base_ex");
     let result;

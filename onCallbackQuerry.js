@@ -12,23 +12,17 @@ const onCallbackQuerry = async (
   const listEx = (length) => list.ex(conn, length);
   const listDay = (user, dayNo, length) => list.day(conn, user, dayNo, length);
   const listAllDays = (user, length) => list.allDays(conn, user, length);
-
+  // выцепляем все нужные данные из сообщения из базы данных. В данном случае mode - это новый статус пользователя согласно сообщению, которое принял бот. В общем случае этот статус заносится в базу посредством функции updateMode, но не всегда - иногда человек остается там же с точки зрения навигации, но получает, например, видео упражнения
   const chat = msg.message.chat.id;
   const mode = msg.data;
-
   const exList = await conn.query("SELECT * FROM base_ex");
-  let userData = await conn.query(
+  const userData = await conn.query(
     `SELECT * FROM users WHERE user_tg_id=${chat}`
   );
-  if (userData.length === 0) {
-    await conn.query(
-      `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${chat}', 'default', '{"days":[]}')`
-    );
-    userData = await conn.query(`SELECT * FROM users WHERE user_tg_id=${chat}`);
-    bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
-  }
-  const days = JSON.parse(userData[0].user_data).days;
 
+  const days = await JSON.parse(userData[0].user_data).days;
+
+  // далее в зависимости от mode, то есть полученного через кнопку inline_keyboard сообщения, бот присваивает человеку новый статус, дает ему новые кнопки и информацию и т.д.
   switch (mode) {
     case "default":
       updateMode(mode, chat);
@@ -89,7 +83,6 @@ const onCallbackQuerry = async (
     }
     case "delete_day": {
       updateMode(mode, chat);
-
       bot.sendMessage(
         chat,
         `Выберите день, чтобы удалить его. Список дней:\n\n${await listAllDays(
@@ -101,15 +94,23 @@ const onCallbackQuerry = async (
     }
     case "edit_day": {
       updateMode(mode, chat);
-      bot.sendMessage(
-        chat,
-        `Какой день по счету будем редактировать?\n\n${await listAllDays(
-          chat
-        )}`,
-        keyboards.btnList(days, "День ")
-        // keyboards.escape
-      );
-      break;
+      if (days.length > 0) {
+        bot.sendMessage(
+          chat,
+          `Какой день по счету будем редактировать?\n\n${await listAllDays(
+            chat
+          )}`,
+          keyboards.btnList(days, "День ")
+        );
+        break;
+      } else {
+        bot.sendMessage(
+          chat,
+          "Сначала создайте хотя бы один день!",
+          keyboards.base
+        );
+        break;
+      }
     }
     case "workout": {
       updateMode(mode, chat);
@@ -149,10 +150,8 @@ const onCallbackQuerry = async (
           keyboards.escape()
         );
       }
-
       break;
     }
-
     default:
       if (/^add_ex_day_\d$/.test(mode)) {
         const dayNo = mode.replaceAll(/add_ex_day_/g, "");
@@ -169,12 +168,10 @@ const onCallbackQuerry = async (
       if (/^delete_ex_day_\d$/.test(mode)) {
         const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
         updateMode(`delete_ex_day_${dayNo}`, chat);
-
         const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
         const list = day.map((el) =>
           exList.find((ex) => ex.base_ex_id == el.base_ex_id)
         );
-
         bot.sendMessage(
           chat,
           `Выберите упражнение, которое хотите удалить из дня.\n\n${await listDay(
@@ -207,7 +204,6 @@ const onCallbackQuerry = async (
         const day = days[dayNo - 1];
         const ex = getEx(chat, dayNo, exNo);
         updateMode(`workout_${dayNo}_${exNo}`, chat);
-
         bot.sendMessage(
           chat,
           `Текущее упражнение: ${ex.name}\n\n${
