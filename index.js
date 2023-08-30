@@ -27,7 +27,6 @@ async function updateData(user, action) {
     return conn.query(
       `UPDATE users SET user_data='{"days":[[]]}' WHERE user_tg_id='${user}'`
     );
-    // НЕ КРИТИЧНО, НО ЗАВИСАЕТ
   } else {
     userData[0].user_data = JSON.parse(userData[0].user_data);
     action(userData[0].user_data);
@@ -74,27 +73,42 @@ async function run() {
     const mode = data[0].user_mode;
     switch (mode) {
       case "create_ex": {
-        await conn.query(
-          `INSERT INTO base_ex (name, description) VALUES('${
-            text.split("\n")[0]
-          }', '${text.split("\n")[1] ?? ""}')`
-        );
+        if (/^.+\n.+$/.test(text) || /^.+$/.test(text)) {
+          await conn.query(
+            `INSERT INTO base_ex (name, description) VALUES('${
+              text.split("\n")[0]
+            }', '${text.split("\n")[1] ?? ""}')`
+          );
 
-        const currentExId = await conn.query(
-          `SELECT base_ex_id FROM base_ex WHERE name='${text.split("\n")[0]}'`
-        );
-        // здесь должна быть проверочка на совпадение имен, надо выпиливать последнее при совпадении
-        console.log(currentExId[0].base_ex_id);
-        updateMode(`create_ex_${currentExId[0].base_ex_id}`, chat);
+          const currentExId = await conn.query(
+            `SELECT base_ex_id FROM base_ex WHERE name='${text.split("\n")[0]}'`
+          );
+          // здесь должна быть проверочка на совпадение имен, надо выпиливать последнее при совпадении
+          console.log(currentExId[0].base_ex_id);
+          updateMode(`create_ex_${currentExId[0].base_ex_id}`, chat);
 
-        bot.sendMessage(
-          chat,
-          `Теперь пришлите видео, если есть`,
-          keyboards.createEx
-        );
-        break;
+          bot.sendMessage(
+            chat,
+            `Теперь пришлите видео, если есть`,
+            keyboards.createEx
+          );
+          break;
+        } else {
+          bot.sendMessage(
+            chat,
+            "Вы ошиблись с форматированием, попробуйте еще раз"
+          );
+          break;
+        }
       }
       case "delete_ex": {
+        if (!/\d+/.test(text)) {
+          bot.sendMessage(
+            chat,
+            "Вы ошиблись с форматированием, попробуйте еще раз"
+          );
+          break;
+        }
         const exIdToDelete = exList[Number(text - 1)].base_ex_id;
         conn.query(`DELETE FROM base_ex WHERE base_ex_id='${exIdToDelete}'`);
         bot.sendMessage(
@@ -105,6 +119,13 @@ async function run() {
         break;
       }
       case "delete_day": {
+        if (!/^\d\d?$/.test(text)) {
+          bot.sendMessage(
+            chat,
+            "Вы ошиблись с форматированием, попробуйте еще раз"
+          );
+          break;
+        }
         const dayToDelete = Number(text.replaceAll(/^.*\s/g, "")) - 1;
         await updateData(chat, (data) => data.days.splice(dayToDelete, 1));
         await bot.sendMessage(chat, "День удален", keyboards.rm);
@@ -116,6 +137,13 @@ async function run() {
         break;
       }
       case "edit_day": {
+        if (!/^День \d\d?$/.test(text)) {
+          bot.sendMessage(
+            chat,
+            "Вы ошиблись с форматированием, попробуйте еще раз"
+          );
+          break;
+        }
         const dayToEdit = Number(text.replaceAll(/^.*\s/g, ""));
         await updateMode(`edit_day_${dayToEdit}`, chat);
         await bot.sendMessage(
@@ -132,6 +160,13 @@ async function run() {
       }
       default:
         if (/^add_ex_day_\d$/.test(mode)) {
+          if (!/^(\d\d?\n)(\d\d?\n)?(\d\d?\n)?(.+?)?$/) {
+            bot.sendMessage(
+              chat,
+              "Вы ошиблись с форматированием, попробуйте еще раз"
+            );
+            break;
+          }
           const dayNo = mode.replaceAll(/add_ex_day_/g, "");
           const payload = text.split("\n");
           const exList = await conn.query("SELECT * FROM base_ex");
@@ -158,6 +193,13 @@ async function run() {
         }
 
         if (/^delete_ex_day_\d$/.test(mode)) {
+          if (!/^\d: .+/.test(text)) {
+            bot.sendMessage(
+              chat,
+              "Вы ошиблись с форматированием, попробуйте еще раз"
+            );
+            break;
+          }
           const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
           const exIdToDelete = Number(mode.replaceAll(/^.*_/g, ""));
           await updateData(chat, (data) => {
@@ -175,26 +217,34 @@ async function run() {
           );
         }
         if (/workout_\d_\d$/.test(mode)) {
+          if (!/^(\d\d?\n)(\d\d?\n)?(\d\d?\n)?(.+?)?$/.test(text)) {
+            bot.sendMessage(
+              chat,
+              "Вы ошиблись с форматированием, попробуйте еще раз"
+            );
+            break;
+          }
           const exNo = mode.replaceAll(/^workout_\d_/g, "");
           const dayNo = mode.replaceAll(/^workout_/g, "")[0];
           const newData = text.split("\n");
+          console.log(newData);
           await updateData(chat, (data) => {
             data.days[dayNo - 1][exNo - 1].sets = newData[0];
             data.days[dayNo - 1][exNo - 1].times = newData[1];
-            if (data.days[dayNo - 1][exNo - 1].weight) {
+            if (newData[2]) {
               data.days[dayNo - 1][exNo - 1].weight = newData[2];
             }
-            if (data.days[dayNo - 1][exNo - 1].comment) {
-              data.days[dayNo - 1][exNo - 1].comment = newData.comment;
+            if (newData[3]) {
+              data.days[dayNo - 1][exNo - 1].comment = newData[3];
             }
           });
+
           const userData = await conn.query(
             `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
           );
           const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
-          const exId = day[exNo - 1].base_ex_id;
-          const exes = await conn.query("SELECT * FROM base_ex");
-          const ex = exes.find((el) => el.base_ex_id === exId);
+          const ex = await getEx(chat, dayNo, exNo);
+
           updateMode(`workout_${dayNo}_${exNo}`, chat);
 
           bot.sendMessage(
@@ -301,7 +351,7 @@ async function run() {
         const days = JSON.parse(userData[0].user_data).days;
         bot.sendMessage(
           chat,
-          `Какой день по счету будем редактировать? Пришлите число.\n\n${await listAllDays(
+          `Какой день по счету будем редактировать?\n\n${await listAllDays(
             chat
           )}`,
           keyboards.btnList(days, "День ")
@@ -350,10 +400,7 @@ async function run() {
         const mode = data[0].user_mode;
         const exNo = mode.replaceAll(/^workout_\d_/g, "");
         const dayNo = mode.replaceAll(/^workout_/g, "")[0];
-        const day = JSON.parse(data[0].user_data).days[dayNo - 1];
-        const exId = day[exNo - 1].base_ex_id;
-        const exes = await conn.query("SELECT * FROM base_ex");
-        const ex = exes.find((el) => el.base_ex_id === exId);
+        const ex = await getEx(chat, dayNo, exNo);
         if (ex.video_id) {
           bot.sendVideo(chat, ex.video_id, keyboards.ex(`workout_${dayNo}`));
         } else {
@@ -427,6 +474,7 @@ async function run() {
         if (/workout_\d_\d$/.test(mode)) {
           const exNo = mode.replaceAll(/^workout_\d_/g, "");
           const dayNo = mode.replaceAll(/^workout_/g, "")[0];
+
           const userData = await conn.query(
             `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
           );
@@ -449,6 +497,19 @@ async function run() {
     }
   });
 
+  const getEx = async (user, dayNo, exNo) => {
+    console.log(user, dayNo, exNo);
+    const userData = await conn.query(
+      `SELECT user_data FROM users WHERE user_tg_id='${user}'`
+    );
+    const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+    const exId = day[exNo - 1].base_ex_id;
+    const exes = await conn.query("SELECT * FROM base_ex");
+    const ex = exes.find((el) => el.base_ex_id === exId);
+
+    return ex;
+  };
+
   bot.on("video", async (msg) => {
     const data = await conn.query(
       `SELECT * FROM users WHERE user_tg_id=${msg.chat.id}`
@@ -468,7 +529,7 @@ run();
 // багфиксы
 // валидаторы
 //+ клавиатура после отправки видео
-// клавиатура перед удплением упражнения из дня
-// клавиатура после удаления упражнения из дня
+//+ клавиатура перед удплением упражнения из дня
+//+ клавиатура после удаления упражнения из дня
 //+ Сделать чтоб при добавлении упражнения в день можно было не указывать подходы/разы
 // Что если удаляется из каталога упражнение, которое есть в днях?
