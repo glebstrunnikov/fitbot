@@ -17,9 +17,9 @@ const list = {
         result = exList
           .map(
             (el, i) =>
-              `${i + 1}: ${el.name}.\nОписание: ${el.description}\n\nВидео: ${
-                el.video_url
-              }`
+              `${i + 1}: ${el.name}.\n` +
+              (el.description ? `Описание: ${el.description}\n` : "") +
+              (el.video_id ? `Видео: /video_${el.base_ex_id}\n` : "")
           )
           .join("");
         break;

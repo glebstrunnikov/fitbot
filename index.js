@@ -1,3 +1,10 @@
+// CREATE DATABASE gymdailybot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+// CREATE USER 'gymdailybot'@'localhost' IDENTIFIED BY '...'
+// GRANT ALL PRIVILEGES ON gymdailybot.* TO 'gymdailybot'@'localhost'
+// FLUSH PRIVILEGES;
+// CREATE TABLE base_ex (base_ex_id int NOT NULL AUTO_INCREMENT, name char(255), description varchar(1000), video_id char(255), PRIMARY KEY(base_ex_id));
+// CREATE TABLE users (user_tg_id int, user_mode char(255), user_data longtext, PRIMARY KEY(user_tg_id));
+
 import dotenv from "dotenv";
 dotenv.config();
 import TelegramApi from "node-telegram-bot-api";
@@ -14,15 +21,16 @@ const conn = await mariadb.createConnection({
 
 const bot = new TelegramApi(process.env.BOT_TOKEN, { polling: true });
 
+// функции для формирования списков упражнений в базе/дней/одного дня с упражнениями. Эти списки выдаются в сообщениях для пользователя
 const listEx = (length) => list.ex(conn, length);
 const listDay = (user, dayNo, length) => list.day(conn, user, dayNo, length);
 const listAllDays = (user, length) => list.allDays(conn, user, length);
 
+// обновляет информацию в базе по конкретному пользователю
 async function updateData(user, action) {
   const userData = await conn.query(
     `SELECT user_data FROM users WHERE user_tg_id='${user}'`
   );
-
   if (userData[0].user_data === "" || userData[0].user_data === null) {
     return conn.query(
       `UPDATE users SET user_data='{"days":[[]]}' WHERE user_tg_id='${user}'`
@@ -37,11 +45,26 @@ async function updateData(user, action) {
   }
 }
 
+// обновляет статус пользователя в базе
 async function updateMode(newMode, user) {
   await conn.query(
     `UPDATE users SET user_mode = '${newMode}' WHERE user_tg_id = '${user}'`
   );
 }
+
+// находит упражнение в базе упражнений по айди юзера, номеру его дня и упражнения в нем
+const getEx = async (user, dayNo, exNo) => {
+  console.log(user, dayNo, exNo);
+  const userData = await conn.query(
+    `SELECT user_data FROM users WHERE user_tg_id='${user}'`
+  );
+  const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+  const exId = day[exNo - 1].base_ex_id;
+  const exes = await conn.query("SELECT * FROM base_ex");
+  const ex = exes.find((el) => el.base_ex_id === exId);
+
+  return ex;
+};
 
 async function run() {
   bot.on("text", async (msg) => {
@@ -49,19 +72,20 @@ async function run() {
     const chat = msg.chat.id;
     const userId = msg.chat.id;
 
-    let data = await conn.query(
+    const exList = await conn.query("SELECT * FROM base_ex");
+    let userData = await conn.query(
       `SELECT * FROM users WHERE user_tg_id=${userId}`
     );
-    const exList = await conn.query("SELECT * FROM base_ex");
-
-    if (data.length === 0) {
+    if (userData.length === 0) {
       await conn.query(
         `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${userId}', 'default', '{"days":[]}')`
       );
-      data = await conn.query(`SELECT * FROM users WHERE user_tg_id=${userId}`);
+      userData = await conn.query(
+        `SELECT * FROM users WHERE user_tg_id=${userId}`
+      );
       bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
     }
-
+    const days = JSON.parse(userData[0].user_data).days;
     if (text === "/start") {
       bot.sendMessage(
         chat,
@@ -70,7 +94,17 @@ async function run() {
       );
     }
 
-    const mode = data[0].user_mode;
+    if (/^\/video_\d+$/.test(text)) {
+      const exId = text.replaceAll(/\/video_/g, "");
+      const ex = exList.find((ex) => ex.base_ex_id == exId);
+      bot.sendVideo(
+        userId,
+        ex.video_id,
+        keyboards.escape("Показать упражнения", "show_exes")
+      );
+    }
+
+    const mode = userData[0].user_mode;
     switch (mode) {
       case "create_ex": {
         if (/^.+\n.+$/.test(text) || /^.+$/.test(text)) {
@@ -84,7 +118,6 @@ async function run() {
             `SELECT base_ex_id FROM base_ex WHERE name='${text.split("\n")[0]}'`
           );
           // здесь должна быть проверочка на совпадение имен, надо выпиливать последнее при совпадении
-          console.log(currentExId[0].base_ex_id);
           updateMode(`create_ex_${currentExId[0].base_ex_id}`, chat);
 
           bot.sendMessage(
@@ -160,7 +193,7 @@ async function run() {
       }
       default:
         if (/^add_ex_day_\d$/.test(mode)) {
-          if (!/^(\d\d?\n)(\d\d?\n)?(\d\d?\n)?(.+?)?$/) {
+          if (!/^(\d\d?\n)(\d\d?\n)?(\d\d?\n)?(.+?)?$/.test(text)) {
             bot.sendMessage(
               chat,
               "Вы ошиблись с форматированием, попробуйте еще раз"
@@ -169,7 +202,7 @@ async function run() {
           }
           const dayNo = mode.replaceAll(/add_ex_day_/g, "");
           const payload = text.split("\n");
-          const exList = await conn.query("SELECT * FROM base_ex");
+
           await updateData(chat, (data) => {
             data.days[dayNo - 1].push({
               base_ex_id: exList[payload[0] - 1].base_ex_id,
@@ -238,11 +271,7 @@ async function run() {
               data.days[dayNo - 1][exNo - 1].comment = newData[3];
             }
           });
-
-          const userData = await conn.query(
-            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-          );
-          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const day = days[dayNo - 1];
           const ex = await getEx(chat, dayNo, exNo);
 
           updateMode(`workout_${dayNo}_${exNo}`, chat);
@@ -265,6 +294,21 @@ async function run() {
     const chat = msg.message.chat.id;
     const mode = msg.data;
 
+    const exList = await conn.query("SELECT * FROM base_ex");
+    let userData = await conn.query(
+      `SELECT * FROM users WHERE user_tg_id=${chat}`
+    );
+    if (userData.length === 0) {
+      await conn.query(
+        `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${chat}', 'default', '{"days":[]}')`
+      );
+      userData = await conn.query(
+        `SELECT * FROM users WHERE user_tg_id=${chat}`
+      );
+      bot.sendMessage(chat, "Кажется, вы у нас в первый раз! Добро пожаловать");
+    }
+    const days = JSON.parse(userData[0].user_data).days;
+
     switch (mode) {
       case "default":
         updateMode(mode, chat);
@@ -273,12 +317,11 @@ async function run() {
           chat,
           `Список дней с упражнениями:\n\n${await listAllDays(chat)}`,
           keyboards.base
-          // keyboards.custom([1, 2, 3], "default")
         );
         break;
       case "show_exes":
         updateMode(mode, chat);
-        bot.sendMessage(chat, await listEx(2), keyboards.base);
+        bot.sendMessage(chat, await listEx(3), keyboards.base);
         break;
       case "create_ex":
         updateMode(mode, chat);
@@ -330,10 +373,7 @@ async function run() {
       }
       case "delete_day": {
         updateMode(mode, chat);
-        const userData = await conn.query(
-          `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-        );
-        const days = JSON.parse(userData[0].user_data).days;
+
         bot.sendMessage(
           chat,
           `Выберите день, чтобы удалить его. Список дней:\n\n${await listAllDays(
@@ -345,10 +385,6 @@ async function run() {
       }
       case "edit_day": {
         updateMode(mode, chat);
-        const userData = await conn.query(
-          `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-        );
-        const days = JSON.parse(userData[0].user_data).days;
         bot.sendMessage(
           chat,
           `Какой день по счету будем редактировать?\n\n${await listAllDays(
@@ -361,11 +397,6 @@ async function run() {
       }
       case "workout": {
         updateMode(mode, chat);
-        const userData = await conn.query(
-          `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-        );
-        const days = JSON.parse(userData[0].user_data).days;
-
         bot.sendMessage(
           chat,
           `Супер, удачной тренировки! Выберите, какой сегодня день:\n\n${await listAllDays(
@@ -376,10 +407,10 @@ async function run() {
         break;
       }
       case "unsave": {
-        const data = await conn.query(
-          `SELECT * FROM users WHERE user_tg_id=${chat}`
+        const currentExId = userData[0].user_mode.replaceAll(
+          /^create_ex_/g,
+          ""
         );
-        const currentExId = data[0].user_mode.replaceAll(/^create_ex_/g, "");
         await conn.query(
           `DELETE FROM base_ex WHERE base_ex_id='${currentExId}'`
         );
@@ -394,12 +425,9 @@ async function run() {
         break;
       }
       case "show_video": {
-        const data = await conn.query(
-          `SELECT * FROM users WHERE user_tg_id=${chat}`
-        );
-        const mode = data[0].user_mode;
-        const exNo = mode.replaceAll(/^workout_\d_/g, "");
-        const dayNo = mode.replaceAll(/^workout_/g, "")[0];
+        const previousMode = userData[0].user_mode;
+        const exNo = previousMode.replaceAll(/^workout_\d_/g, "");
+        const dayNo = previousMode.replaceAll(/^workout_/g, "")[0];
         const ex = await getEx(chat, dayNo, exNo);
         if (ex.video_id) {
           bot.sendVideo(chat, ex.video_id, keyboards.ex(`workout_${dayNo}`));
@@ -431,15 +459,10 @@ async function run() {
           const dayNo = mode.replaceAll(/delete_ex_day_/g, "");
           updateMode(`delete_ex_day_${dayNo}`, chat);
 
-          const userData = await conn.query(
-            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-          );
-          const exes = await conn.query("SELECT * FROM base_ex");
           const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
           const list = day.map((el) =>
-            exes.find((ex) => ex.base_ex_id == el.base_ex_id)
+            exList.find((ex) => ex.base_ex_id == el.base_ex_id)
           );
-          console.log(list);
 
           bot.sendMessage(
             chat,
@@ -453,13 +476,9 @@ async function run() {
         if (/^workout_\d$/.test(mode)) {
           const dayNo = mode.replaceAll(/workout_/g, "");
           updateMode(`workout_${dayNo}`, chat);
-          const userData = await conn.query(
-            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-          );
-          const exes = await conn.query("SELECT * FROM base_ex");
-          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const day = days[dayNo - 1];
           const dayArr = day.map((el) => {
-            return exes.find((ex) => ex.base_ex_id == el.base_ex_id).name;
+            return exList.find((ex) => ex.base_ex_id == el.base_ex_id).name;
           });
           bot.sendMessage(
             chat,
@@ -474,14 +493,8 @@ async function run() {
         if (/workout_\d_\d$/.test(mode)) {
           const exNo = mode.replaceAll(/^workout_\d_/g, "");
           const dayNo = mode.replaceAll(/^workout_/g, "")[0];
-
-          const userData = await conn.query(
-            `SELECT user_data FROM users WHERE user_tg_id='${chat}'`
-          );
-          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
-          const exId = day[exNo - 1].base_ex_id;
-          const exes = await conn.query("SELECT * FROM base_ex");
-          const ex = exes.find((el) => el.base_ex_id === exId);
+          const day = days[dayNo - 1];
+          const ex = getEx(chat, dayNo, exNo);
           updateMode(`workout_${dayNo}_${exNo}`, chat);
 
           bot.sendMessage(
@@ -496,19 +509,6 @@ async function run() {
         }
     }
   });
-
-  const getEx = async (user, dayNo, exNo) => {
-    console.log(user, dayNo, exNo);
-    const userData = await conn.query(
-      `SELECT user_data FROM users WHERE user_tg_id='${user}'`
-    );
-    const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
-    const exId = day[exNo - 1].base_ex_id;
-    const exes = await conn.query("SELECT * FROM base_ex");
-    const ex = exes.find((el) => el.base_ex_id === exId);
-
-    return ex;
-  };
 
   bot.on("video", async (msg) => {
     const data = await conn.query(
@@ -525,9 +525,10 @@ async function run() {
 }
 run();
 
+// Добавить возможность смотреть видео из каталога упражнений
 // в listEx переделать, чтоб описания не показывались, если их нет
 // багфиксы
-// валидаторы
+//+ валидаторы
 //+ клавиатура после отправки видео
 //+ клавиатура перед удплением упражнения из дня
 //+ клавиатура после удаления упражнения из дня
