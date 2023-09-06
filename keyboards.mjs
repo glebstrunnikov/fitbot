@@ -4,20 +4,20 @@ const keyboards = {
     reply_markup: JSON.stringify({
       inline_keyboard: [
         [
-          { text: "Главное меню", callback_data: "default" },
-          { text: "Показать упражнения", callback_data: "show_exes" },
+          { text: 'Главное меню', callback_data: 'default' },
+          { text: 'Показать упражнения', callback_data: 'show_exes' },
         ],
         [
-          { text: "Создать упражнение", callback_data: "create_ex" },
-          { text: "Удалить упражнение", callback_data: "delete_ex" },
+          { text: 'Создать упражнение', callback_data: 'create_ex' },
+          { text: 'Удалить упражнение', callback_data: 'delete_ex' },
         ],
         [
-          { text: "Создать день", callback_data: "create_day" },
-          { text: "Удалить день", callback_data: "delete_day" },
+          { text: 'Создать день', callback_data: 'create_day' },
+          { text: 'Удалить день', callback_data: 'delete_day' },
         ],
         [
-          { text: "Редактировать день", callback_data: "edit_day" },
-          { text: "Тренироваться", callback_data: "workout" },
+          { text: 'Редактировать день', callback_data: 'edit_day' },
+          { text: 'Тренироваться', callback_data: 'workout' },
         ],
       ],
     }),
@@ -29,21 +29,20 @@ const keyboards = {
         reply_markup: JSON.stringify({
           inline_keyboard: [
             [
-              { text: "Главное меню", callback_data: "default" },
+              { text: 'Главное меню', callback_data: 'default' },
               { text: secondOptionText, callback_data: secondOptionData },
             ],
           ],
         }),
       };
-    } else {
-      return {
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [{ text: "Назад в главное меню", callback_data: "default" }],
-          ],
-        }),
-      };
     }
+    return {
+      reply_markup: JSON.stringify({
+        inline_keyboard: [
+          [{ text: 'Назад в главное меню', callback_data: 'default' }],
+        ],
+      }),
+    };
   },
   // клавиатура для редактирования дня (добавления/удаления упражнений),
   editDay: (dayNo) => {
@@ -52,16 +51,16 @@ const keyboards = {
         inline_keyboard: [
           [
             {
-              text: "Добавить упражнение",
+              text: 'Добавить упражнение',
               callback_data: `add_ex_day_${dayNo}`,
             },
           ],
           [
             {
-              text: "Удалить упражнение",
+              text: 'Удалить упражнение',
               callback_data: `delete_ex_day_${dayNo}`,
             },
-            { text: "Главное меню", callback_data: "default" },
+            { text: 'Главное меню', callback_data: 'default' },
           ],
         ],
       }),
@@ -76,7 +75,7 @@ const keyboards = {
         callback_data: mode + (Number(i) + 1),
       },
     ]);
-    keyboard.push([{ text: "Главное меню", callback_data: "default" }]);
+    keyboard.push([{ text: 'Главное меню', callback_data: 'default' }]);
     return {
       reply_markup: JSON.stringify({
         inline_keyboard: keyboard,
@@ -89,10 +88,10 @@ const keyboards = {
     return {
       reply_markup: JSON.stringify({
         inline_keyboard: [
-          [{ text: "Назад", callback_data: backData }],
+          [{ text: 'Назад', callback_data: backData }],
           [
-            { text: "Посмотреть видео", callback_data: "show_video" },
-            { text: "Главное меню", callback_data: "default" },
+            { text: 'Посмотреть видео', callback_data: 'show_video' },
+            { text: 'Главное меню', callback_data: 'default' },
           ],
         ],
       }),
@@ -104,8 +103,8 @@ const keyboards = {
     reply_markup: JSON.stringify({
       inline_keyboard: [
         [
-          { text: "Назад в главное меню", callback_data: "unsave" },
-          { text: "Сохранить без видео", callback_data: "default" },
+          { text: 'Назад в главное меню', callback_data: 'unsave' },
+          { text: 'Сохранить без видео', callback_data: 'default' },
         ],
       ],
     }),
@@ -119,7 +118,7 @@ const keyboards = {
           return [
             {
               text: `${dummyText}${i + 1}${
-                el[attribute] ? ": " + el[attribute] : ""
+                el[attribute] ? `: ${el[attribute]}` : ''
               }`,
             },
           ];
