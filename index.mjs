@@ -1,10 +1,3 @@
-// CREATE DATABASE gymdailybot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-// CREATE USER 'gymdailybot'@'localhost' IDENTIFIED BY '...'
-// GRANT ALL PRIVILEGES ON gymdailybot.* TO 'gymdailybot'@'localhost'
-// FLUSH PRIVILEGES;
-// CREATE TABLE base_ex (base_ex_id int NOT NULL AUTO_INCREMENT, name char(255), description varchar(1000), video_id char(255), PRIMARY KEY(base_ex_id));
-// CREATE TABLE users (user_tg_id int, user_mode char(255), user_data longtext, PRIMARY KEY(user_tg_id));
-
 import TelegramApi from 'node-telegram-bot-api';
 
 import keyboards from './keyboards.mjs';
@@ -31,17 +24,12 @@ async function run() {
   bot.on('video', async (msg) => {
     const data = await getUserData(msg.chat.id);
     const mode = data[0].user_mode;
-    if (/^create_ex_/.test(mode)) {
-      const currentExId = mode.replaceAll(/^create_ex_/g, '');
+    const reCreateExNo = /^create_ex_/g;
+    if (reCreateExNo.test(mode)) {
+      const currentExId = mode.replaceAll(reCreateExNo, '');
       await addVideo(msg.video.file_id, currentExId);
     }
     bot.sendMessage(msg.chat.id, 'Спасибо, видео сохранено!', keyboards.base);
   });
 }
 run();
-
-// Что если удаляется из каталога упражнение, которое есть в днях?
-// вынести все что связано с базой в отдельный модуль
-// сделать все регэкспы констами
-// понять что я не так экспортирую и исправить
-// понять что сделать с циклом зависимостей и сделать это

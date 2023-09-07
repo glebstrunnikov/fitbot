@@ -123,96 +123,111 @@ const onText = async (bot, msg, list, keyboards) => {
       break;
     }
     default:
-      if (/^add_ex_day_\d$/.test(mode)) {
-        if (!/^(\d\d?\n?)(\d\d?\n)?(\d\d?\n)?(.+?)?$/.test(text)) {
-          bot.sendMessage(
-            chat,
-            'Вы ошиблись с форматированием, попробуйте еще раз',
-          );
-          break;
-        }
-        const dayNo = mode.replaceAll(/add_ex_day_/g, '');
-        const payload = text.split('\n');
+      {
+        const reAddExDayNo = /^add_ex_day_\d$/;
+        if (reAddExDayNo.test(mode)) {
+          const reOneToFourDidgits = !/^(\d\d?\n?)(\d\d?\n)?(\d\d?\n)?(.+?)?$/;
+          if (reOneToFourDidgits.test(text)) {
+            bot.sendMessage(
+              chat,
+              'Вы ошиблись с форматированием, попробуйте еще раз',
+            );
+            break;
+          }
+          const dayNo = mode.replaceAll(/add_ex_day_/g, '');
+          const payload = text.split('\n');
 
-        await updateData(chat, week, (data) => {
-          data.days[dayNo - 1].push({
-            base_ex_id: exList[payload[0] - 1].base_ex_id,
-            sets: payload[1] ?? '',
-            times: payload[2] ?? '',
-            weight: payload[3] ?? '',
-            comment: payload[4] ?? '',
+          await updateData(chat, week, (data) => {
+            data.days[dayNo - 1].push({
+              base_ex_id: exList[payload[0] - 1].base_ex_id,
+              sets: payload[1] ?? '',
+              times: payload[2] ?? '',
+              weight: payload[3] ?? '',
+              comment: payload[4] ?? '',
+            });
+            return data;
           });
-          return data;
-        });
-        bot.sendMessage(
-          chat,
-          `Упражнение добавлено в день. Теперь день выглядит так:\n\n${await list.day(
-            chat,
-            dayNo,
-            2,
-          )}\n\nВы можете добавить еще упражнение таким же способом: номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки. Или вернуться в главное меню.\n\n${await list.ex(
-            1,
-          )}`,
-          keyboards.escape(),
-        );
-      }
-
-      if (/^delete_ex_day_\d$/.test(mode)) {
-        if (!/^\d: .+/.test(text)) {
           bot.sendMessage(
             chat,
-            'Вы ошиблись с форматированием, попробуйте еще раз',
+            `Упражнение добавлено в день. Теперь день выглядит так:\n\n${await list.day(
+              chat,
+              dayNo,
+              2,
+            )}\n\nВы можете добавить еще упражнение таким же способом: номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки. Или вернуться в главное меню.\n\n${await list.ex(
+              1,
+            )}`,
+            keyboards.escape(),
           );
-          break;
         }
-        const dayNo = mode.replaceAll(/delete_ex_day_/g, '');
-        const exIdToDelete = Number(text.replaceAll(/:.*$/g, '')) - 1;
-        await updateData(chat, week, (data) => {
-          data.days[dayNo - 1].splice(exIdToDelete, 1);
-          return data;
-        });
-        await bot.sendMessage(chat, 'Упражнение удалено из дня', keyboards.rm);
-        bot.sendMessage(
-          chat,
-          `Теперь день выглядит так:\n\n${await list.day(chat, dayNo, 2)}`,
-          keyboards.editDay(dayNo),
-        );
       }
-      if (/workout_\d_\d$/.test(mode)) {
-        if (!/^(\d\d?\n)(\d\d?\n)?(\d\d?\n)?(.+?)?$/.test(text)) {
+      {
+        const reDeleteExDayNo = /^delete_ex_day_\d$/;
+        if (reDeleteExDayNo.test(mode)) {
+          if (!/^\d: .+/.test(text)) {
+            bot.sendMessage(
+              chat,
+              'Вы ошиблись с форматированием, попробуйте еще раз',
+            );
+            break;
+          }
+          const dayNo = mode.replaceAll(/delete_ex_day_/g, '');
+          const exIdToDelete = Number(text.replaceAll(/:.*$/g, '')) - 1;
+          await updateData(chat, week, (data) => {
+            data.days[dayNo - 1].splice(exIdToDelete, 1);
+            return data;
+          });
+          await bot.sendMessage(
+            chat,
+            'Упражнение удалено из дня',
+            keyboards.rm,
+          );
           bot.sendMessage(
             chat,
-            'Вы ошиблись с форматированием, попробуйте еще раз',
+            `Теперь день выглядит так:\n\n${await list.day(chat, dayNo, 2)}`,
+            keyboards.editDay(dayNo),
           );
-          break;
         }
-        const exNo = mode.replaceAll(/^workout_\d_/g, '');
-        const dayNo = mode.replaceAll(/^workout_/g, '')[0];
-        const newData = text.split('\n');
-        await updateData(chat, week, (data) => {
-          data.days[dayNo - 1][exNo - 1].sets = newData[0];
-          data.days[dayNo - 1][exNo - 1].times = newData[1];
-          if (newData[2]) {
-            data.days[dayNo - 1][exNo - 1].weight = newData[2];
+      }
+      {
+        const reWorkoutNoNo = /^workout_\d_\d$/;
+        if (reWorkoutNoNo.test(mode)) {
+          const reOneToThreeDidgitsAndComment =
+            /^(\d\d?\n)(\d\d?\n)?(\d\d?\n)?(.+?)?$/;
+          if (!reOneToThreeDidgitsAndComment.test(text)) {
+            bot.sendMessage(
+              chat,
+              'Вы ошиблись с форматированием, попробуйте еще раз',
+            );
+            break;
           }
-          if (newData[3]) {
-            data.days[dayNo - 1][exNo - 1].comment = newData[3];
-          }
-          return data;
-        });
-        const day = week.days[dayNo - 1];
-        const ex = await getEx(week, exList, dayNo, exNo);
+          const exNo = mode.replaceAll(/^workout_\d_/g, '');
+          const dayNo = mode.replaceAll(/^workout_/g, '')[0];
+          const newData = text.split('\n');
+          await updateData(chat, week, (data) => {
+            data.days[dayNo - 1][exNo - 1].sets = newData[0];
+            data.days[dayNo - 1][exNo - 1].times = newData[1];
+            if (newData[2]) {
+              data.days[dayNo - 1][exNo - 1].weight = newData[2];
+            }
+            if (newData[3]) {
+              data.days[dayNo - 1][exNo - 1].comment = newData[3];
+            }
+            return data;
+          });
+          const day = week.days[dayNo - 1];
+          const ex = await getEx(week, exList, dayNo, exNo);
 
-        updateMode(`workout_${dayNo}_${exNo}`, chat);
-        bot.sendMessage(
-          chat,
-          `Записали прогресс, ура! 💪\n\n${ex.name}\n\n${
-            day[exNo - 1].sets
-          } подходов по ${day[exNo - 1].times} раз${
-            day[exNo - 1].weight ? ` с весом ${day[exNo - 1].weight}` : ''
-          }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
-          keyboards.ex(`workout_${dayNo}`),
-        );
+          updateMode(`workout_${dayNo}_${exNo}`, chat);
+          bot.sendMessage(
+            chat,
+            `Записали прогресс, ура! 💪\n\n${ex.name}\n\n${
+              day[exNo - 1].sets
+            } подходов по ${day[exNo - 1].times} раз${
+              day[exNo - 1].weight ? ` с весом ${day[exNo - 1].weight}` : ''
+            }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
+            keyboards.ex(`workout_${dayNo}`),
+          );
+        }
       }
       break;
   }

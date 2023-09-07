@@ -146,66 +146,81 @@ const onCallbackQuerry = async (bot, msg, list, keyboards) => {
       break;
     }
     default:
-      if (/^add_ex_day_\d$/.test(mode)) {
-        const dayNo = mode.replaceAll(/add_ex_day_/g, '');
-        updateMode(`add_ex_day_${dayNo}`, chat);
-        bot.sendMessage(
-          chat,
-          `Пришлите номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки \n\n${await list.ex(
-            1,
-          )}`,
-          keyboards.escape(),
-        );
-        break;
-      }
-      if (/^delete_ex_day_\d$/.test(mode)) {
-        const dayNo = mode.replaceAll(/delete_ex_day_/g, '');
-        updateMode(`delete_ex_day_${dayNo}`, chat);
-        const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
-        const dailyExList = day.map((el) =>
-          exList.find((ex) => ex.base_ex_id === el.base_ex_id),
-        );
-        bot.sendMessage(
-          chat,
-          `Выберите упражнение, которое хотите удалить из дня.\n\n${await list.day(
+      {
+        const reAddExDayNo = /^add_ex_day_\d$/;
+        if (reAddExDayNo.test(mode)) {
+          const reAddExDay = /add_ex_day_/g;
+          const dayNo = mode.replaceAll(reAddExDay, '');
+          updateMode(`add_ex_day_${dayNo}`, chat);
+          bot.sendMessage(
             chat,
-            dayNo,
-          )}`,
-          keyboards.btnList(dailyExList, '', 'name'),
-        );
+            `Пришлите номер упражнения из списка, количество подходов, количество повторов, вес (если есть) и комментарий (если есть). Каждое - с новой строки \n\n${await list.ex(
+              1,
+            )}`,
+            keyboards.escape(),
+          );
+          break;
+        }
       }
-      if (/^workout_\d$/.test(mode)) {
-        const dayNo = mode.replaceAll(/workout_/g, '');
-        updateMode(`workout_${dayNo}`, chat);
-        const day = week.days[dayNo - 1];
-        const dayArr = day.map((el) => {
-          return exList.find((ex) => ex.base_ex_id == el.base_ex_id).name;
-        });
-        bot.sendMessage(
-          chat,
-          `Отлично! Вот ваша программа на сегодня, выберите упражнение, чтобы начать:\n\n${await list.day(
+      {
+        const reDeleteExDayNo = /^delete_ex_day_\d$/;
+        if (reDeleteExDayNo.test(mode)) {
+          const reDeleteExDay = /delete_ex_day_/g;
+          const dayNo = mode.replaceAll(reDeleteExDay, '');
+          updateMode(`delete_ex_day_${dayNo}`, chat);
+          const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
+          const dailyExList = day.map((el) =>
+            exList.find((ex) => ex.base_ex_id === el.base_ex_id),
+          );
+          bot.sendMessage(
             chat,
-            dayNo,
-            2,
-          )}`,
-          keyboards.custom(dayArr, `workout_${dayNo}_`, '', true),
-        );
+            `Выберите упражнение, которое хотите удалить из дня.\n\n${await list.day(
+              chat,
+              dayNo,
+            )}`,
+            keyboards.btnList(dailyExList, '', 'name'),
+          );
+        }
       }
-      if (/workout_\d_\d$/.test(mode)) {
-        const exNo = mode.replaceAll(/^workout_\d_/g, '');
-        const dayNo = mode.replaceAll(/^workout_/g, '')[0];
-        const day = week.days[dayNo - 1];
-        const ex = await getEx(week, exList, dayNo, exNo);
-        updateMode(`workout_${dayNo}_${exNo}`, chat);
-        bot.sendMessage(
-          chat,
-          `Текущее упражнение: ${ex.name}\n\n${
-            day[exNo - 1].sets
-          } подходов по ${day[exNo - 1].times} раз${
-            day[exNo - 1].weight ? ` с весом ${day[exNo - 1].weight}` : ''
-          }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
-          keyboards.ex(`workout_${dayNo}`),
-        );
+      {
+        const reWorkout = /^workout_/g;
+        const reWorkoutNo = /^workout_\d/g;
+        const reWorkoutNoNo = /^workout_\d_\d$/;
+
+        if (reWorkoutNo.test(mode)) {
+          const dayNo = mode.replaceAll(reWorkout, '');
+          updateMode(`workout_${dayNo}`, chat);
+          const day = week.days[dayNo - 1];
+          const dayArr = day.map((el) => {
+            return exList.find((ex) => ex.base_ex_id == el.base_ex_id).name;
+          });
+          bot.sendMessage(
+            chat,
+            `Отлично! Вот ваша программа на сегодня, выберите упражнение, чтобы начать:\n\n${await list.day(
+              chat,
+              dayNo,
+              2,
+            )}`,
+            keyboards.custom(dayArr, `workout_${dayNo}_`, '', true),
+          );
+        }
+
+        if (reWorkoutNoNo.test(mode)) {
+          const exNo = mode.replaceAll(reWorkoutNo, '');
+          const dayNo = mode.replaceAll(reWorkout, '')[0];
+          const day = week.days[dayNo - 1];
+          const ex = await getEx(week, exList, dayNo, exNo);
+          updateMode(`workout_${dayNo}_${exNo}`, chat);
+          bot.sendMessage(
+            chat,
+            `Текущее упражнение: ${ex.name}\n\n${
+              day[exNo - 1].sets
+            } подходов по ${day[exNo - 1].times} раз${
+              day[exNo - 1].weight ? ` с весом ${day[exNo - 1].weight}` : ''
+            }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
+            keyboards.ex(`workout_${dayNo}`),
+          );
+        }
       }
   }
 };
