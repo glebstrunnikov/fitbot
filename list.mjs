@@ -46,7 +46,7 @@ const list = {
     for (const ex in day) {
       if (Object.hasOwn(day, ex)) {
         const currentEx = exList.find(
-          (el) => el.base_ex_id == day[ex].base_ex_id,
+          (el) => el.base_ex_id === day[ex].base_ex_id,
         );
         if (!currentEx) {
           return 'Ошибка, такого ID упражнения не существует';
