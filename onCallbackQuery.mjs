@@ -24,7 +24,7 @@ const onCallbackQuerry = async (bot, msg, list, keyboards) => {
         chat,
         `Список дней с упражнениями:\n\n${await list.allDays(chat)}`,
         keyboards.base,
-      );
+      ); 
       break;
     case 'show_exes':
       updateMode(mode, chat);
