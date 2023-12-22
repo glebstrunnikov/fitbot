@@ -126,8 +126,8 @@ const onText = async (bot, msg, list, keyboards) => {
       {
         const reAddExDayNo = /^add_ex_day_\d$/;
         if (reAddExDayNo.test(mode)) {
-          const reOneToFourDidgits = !/^(\d\d?\n?)(\d\d?\n)?(\d\d?\n)?(.+?)?$/;
-          if (reOneToFourDidgits.test(text)) {
+          const reOneToFourDidgits = /^(\d\d?\n?)(\d\d?\n)?(\d\d?\n)?(.+?)?$/;
+          if (!reOneToFourDidgits.test(text)) {
             bot.sendMessage(
               chat,
               'Вы ошиблись с форматированием, попробуйте еще раз',

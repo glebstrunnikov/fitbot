@@ -1,10 +1,9 @@
 import { getBaseExList, getUserData } from './queries.mjs';
 
-const exList = await getBaseExList();
-
 const list = {
   // список упражнений. Выдается в нескольких вариантах - только названия, с описаниями, с описаниями и командами для выдачи видео
   ex: async (length) => {
+    const exList = await getBaseExList();
     let result;
     switch (length) {
       case 1:
@@ -26,6 +25,7 @@ const list = {
               }${el.video_id ? `Видео: /video_${el.base_ex_id}\n` : ''}`,
           )
           .join('');
+        console.log(result);
         break;
       default:
         result = 'Ошибка: вы не указали параметр length в списке упражнений';
@@ -35,6 +35,7 @@ const list = {
   },
 
   day: async (user, dayNo, length) => {
+    const exList = await getBaseExList();
     // добавить багфикс на пустые дни
     const userData = await getUserData(user);
     const day = JSON.parse(userData[0].user_data).days[dayNo - 1];
