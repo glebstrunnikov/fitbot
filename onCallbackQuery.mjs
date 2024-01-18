@@ -187,8 +187,8 @@ const onCallbackQuerry = async (bot, msg, list, keyboards) => {
         const reWorkoutNo = /^workout_\d/g;
         const reWorkoutNoNo = /^workout_\d_\d$/;
 
-        if (reWorkoutNo.test(mode)) {
-          const dayNo = mode.replaceAll(reWorkout, '');
+        if (!reWorkoutNoNo.test(mode) && reWorkoutNo.test(mode)) {
+          const dayNo = Number(mode.replaceAll(reWorkout, ''));
           updateMode(`workout_${dayNo}`, chat);
           const day = week.days[dayNo - 1];
           const dayArr = day.map((el) => {
@@ -206,9 +206,10 @@ const onCallbackQuerry = async (bot, msg, list, keyboards) => {
         }
 
         if (reWorkoutNoNo.test(mode)) {
-          const exNo = mode.replaceAll(reWorkoutNo, '');
-          const dayNo = mode.replaceAll(reWorkout, '')[0];
+          const exNo = Number(mode.replaceAll(reWorkoutNo, '').slice(1));
+          const dayNo = Number(mode.replaceAll(reWorkout, '')[0]);
           const day = week.days[dayNo - 1];
+
           const ex = await getEx(week, exList, dayNo, exNo);
           updateMode(`workout_${dayNo}_${exNo}`, chat);
           bot.sendMessage(
