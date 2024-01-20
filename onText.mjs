@@ -16,14 +16,15 @@ const onText = async (bot, msg, list, keyboards) => {
   const chat = msg.chat.id;
   // Получаем все что нужно из базы данных, если там пусто - прописываем пустую заготовку и снова получаем
   const exList = await getBaseExList();
-
-  if ((await getUserData(chat).length) === 0 && text === '/start') {
+  console.log(await getUserData(chat).length);
+  if ((await getUserData(chat).length) === undefined && text === '/start') {
     bot.sendMessage(
       chat,
       'Кажется, вы у нас в первый раз. Здравствуйте!\nИтак, вот что я могу вам предложить\n',
       keyboards.base,
     );
     await initialInsert(chat);
+    return;
   }
 
   const userData = await getUserData(chat);
