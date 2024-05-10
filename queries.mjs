@@ -18,8 +18,9 @@ export async function getUserData(user) {
 }
 
 export async function initialInsert(user) {
+  const time = new Date().getTime();
   return conn.query(
-    `INSERT INTO users (user_tg_id, user_mode, user_data) VALUES('${user}', 'default', '{"days":[]}')`,
+    `INSERT INTO users (user_tg_id, user_mode, user_data, user_time) VALUES('${user}', 'default', '{"days":[]}', '${time}')`,
   );
 }
 
@@ -51,8 +52,11 @@ export async function addVideo(videoId, exId) {
 export async function updateData(user, daySet, action) {
   let newData = action(daySet);
   newData = JSON.stringify(newData);
+  const time = new Date().getTime();
   return conn.query(
-    `UPDATE users SET user_data = '${newData}' WHERE user_tg_id='${user}'`,
+    // `UPDATE users SET user_data = '${newData}' WHERE user_tg_id='${user}';
+    // UPDATE users SET user_time = '${time}' WHERE user_tg_id='${user}';`,
+    `UPDATE users SET user_data = '${newData}',user_time = '${time}' WHERE user_tg_id = '${user}';`,
   );
 }
 

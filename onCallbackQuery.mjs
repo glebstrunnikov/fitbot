@@ -218,6 +218,10 @@ const onCallbackQuerry = async (bot, msg, list, keyboards) => {
               day[exNo - 1].sets
             } подходов по ${day[exNo - 1].times} раз${
               day[exNo - 1].weight ? ` с весом ${day[exNo - 1].weight}` : ''
+            }${
+              day[exNo - 1].comment
+                ? `\nКомментарий: ${day[exNo - 1].comment}`
+                : ''
             }\n\nЧтобы обновить результат, пришлите новое количество подходов, повторов, вес и комментарий (все — с новой строки)`,
             keyboards.ex(`workout_${dayNo}`),
           );

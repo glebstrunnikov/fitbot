@@ -6,7 +6,15 @@ import onCallbackQuery from './onCallbackQuery.mjs';
 import onText from './onText.mjs';
 import { addVideo, getUserData } from './queries.mjs';
 
-const bot = new TelegramApi(process.env.BOT_TOKEN, { polling: true });
+const bot = new TelegramApi(process.env.BOT_TOKEN, {
+  polling: true,
+  request: {
+    agentOptions: {
+      keepAlive: true,
+      family: 4,
+    },
+  },
+});
 
 // основная функция, запускающая бота
 async function run() {
